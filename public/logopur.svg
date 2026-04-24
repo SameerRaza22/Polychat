@@ -1,0 +1,22 @@
+<svg viewBox="0 0 280 60" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradPurple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4C1D95"></stop>
+      <stop offset="100%" stop-color="#7C3AED"></stop>
+    </linearGradient>
+  </defs>
+
+  <!-- Chat Bubble -->
+  <rect x="0" y="10" rx="18" ry="18" width="48" height="32" fill="url(#gradPurple)"></rect>
+  <polygon points="22,42 30,58 36,42" fill="url(#gradPurple)"></polygon>
+
+  <!-- dots -->
+  <circle cx="14" cy="26" r="3" fill="white"></circle>
+  <circle cx="24" cy="26" r="3" fill="white"></circle>
+  <circle cx="34" cy="26" r="3" fill="white"></circle>
+
+  <!-- Text -->
+  <text x="60" y="34" font-family="Inter, Poppins, sans-serif" font-size="28" font-weight="700" fill="url(#gradPurple)" dominant-baseline="middle">
+    PolyChat
+  </text>
+</svg>
