@@ -1,0 +1,21 @@
+<svg width="340" height="100" viewBox="0 0 340 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pinkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff9ecf"></stop>
+      <stop offset="100%" stop-color="#ff4fa3"></stop>
+    </linearGradient>
+    
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"></feGaussianBlur>
+      <feMerge>
+        <feMergeNode in="coloredBlur"></feMergeNode>
+        <feMergeNode in="SourceGraphic"></feMergeNode>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Text -->
+  <text x="10" y="65" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="48" font-weight="600" fill="url(#pinkGradient)" letter-spacing="0.5" filter="url(#softGlow)">
+    PolyChat
+  </text>
+</svg>
