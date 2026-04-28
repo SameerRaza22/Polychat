@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { createChatWithMessage, deleteChat } from "@/modules/chat/components/actions";
+import { createChatWithMessage, deleteChat, getChatById } from "@/modules/chat/components/actions";
 import { error } from "better-auth/api";
 import { toast } from "sonner";
 
@@ -43,3 +43,10 @@ export const useDeleteChat = (chatId) => {
         }
     });
 };
+
+export const useGetChatById = (chatId) => {
+    return useQuery({
+        queryKey: ["chats", chatId],
+        queryFn: () => getChatById(chatId)
+    })
+}
