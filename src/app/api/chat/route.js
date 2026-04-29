@@ -11,15 +11,14 @@ const provider = createOpenRouter({
 
 function convertStoredMessageToUI(msg) {
     try {
-        const parts = JSON.parse(msg.content);
-        const validParts = parts.filter(part => part.type === "text");
-
-        if (validParts.lenght === 0) return null;
+        const parts = JSON.parse(msg.content)
 
         return {
             id: msg.id,
             role: msg.messageRole.toLowerCase(),
-            parts: validParts,
+            parts: Array.isArray(parts) && parts.length > 0
+                ? parts
+                : [{ type: "text", text: msg.content }],
             createdAt: msg.createdAt
         }
     } catch (error) {
@@ -28,7 +27,7 @@ function convertStoredMessageToUI(msg) {
             role: msg.messageRole.toLowerCase(),
             parts: [{ type: "text", text: msg.content }],
             createdAt: msg.createdAt
-        };
+        }
     }
 }
 
@@ -45,6 +44,8 @@ function extractPartsAsJSON(message) {
 export async function POST(req) {
     try {
         const { chatId, messages: newMessages, model, skipUserMessage } = await req.json();
+        console.log("🔍 newMessages:", newMessages)
+        console.log("🔍 typeof newMessages:", typeof newMessages)
 
         const previousMessages = chatId ? await db.message.findMany({
             where: { chatId },
@@ -56,24 +57,28 @@ export async function POST(req) {
         const uiMessages = previousMessages.map(convertStoredMessageToUI)
             .filter(msg => msg !== null)
 
-        const normalizedNewMessages = Array.isArray(newMessages) ? newMessages : [newMessages];
+        const resolvedMessages =
+            typeof newMessages?.then === "function"
+                ? await newMessages
+                : newMessages
 
+        const normalizedNewMessages = Array.isArray(resolvedMessages)
+            ? resolvedMessages
+            : [resolvedMessages]
         const allUIMessages = [...uiMessages, ...normalizedNewMessages];
 
-
-        let modelMessages;
-
-        try {
-            modelMessages = convertToModelMessages(allUIMessages);
-        } catch (conversionError) {
-            modelMessages = allUIMessages.map(msg => ({
+        const modelMessages = allUIMessages
+            .map((msg) => ({
                 role: msg.role,
-                content: msg.parts
-                    .filter(p => p.type === 'text')
-                    .map(p => p.text)
-                    .join('\n')
-            })).filter(m => m.content);
-        }
+                content:
+                    msg.parts
+                        ?.filter((p) => p.type === "text")
+                        .map((p) => p.text)
+                        .join("\n") || "",
+            }))
+            .filter((msg) => msg.content);
+
+
         const result = streamText({
             model: provider.chat(model),
             messages: modelMessages,
@@ -84,6 +89,7 @@ export async function POST(req) {
             sendReasoning: true,
             originalMessages: allUIMessages,
             onFinish: async ({ responseMessage }) => {
+                console.log("🤖 responseMessage:", responseMessage)
                 try {
                     const messagesToSave = [];
 
@@ -98,12 +104,12 @@ export async function POST(req) {
                                 content: userPartsJSON,
                                 messageRole: MessageRole.USER,
                                 model,
-                                MessageType: MessageType.NORMAL
+                                messageType: MessageType.NORMAL
                             });
                         }
                     }
 
-                    if (responseMessage?.parts && responseMessage.parts.length > 0) {
+                    if (responseMessage) {
                         const assistantPartsJSON = extractPartsAsJSON(responseMessage);
 
                         messagesToSave.push({
@@ -111,7 +117,7 @@ export async function POST(req) {
                             content: assistantPartsJSON,
                             messageRole: MessageRole.ASSISTANT,
                             model,
-                            messageType: "NORMAL",
+                            messageType: MessageType.NORMAL,
                         });
                     }
                     if (messagesToSave.length > 0) {
