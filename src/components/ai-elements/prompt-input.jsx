@@ -757,7 +757,7 @@ export const PromptInput = ({
         onSubmit={handleSubmit}
         ref={formRef}
         {...props}>
-        <div className="w-full bg-background border border-border rounded-xl px-3 py-2 flex flex-col gap-2">
+        <div className="w-full bg-background border border-border rounded-xl px-3 py-2 flex flex-col gap-2 transition-all duration-200 focus-within:border-pink-500 focus-within:ring-2 focus-within:ring-pink-400/50 focus-within:shadow-[0_0_12px_rgba(236,72,153,0.6)]">
           {children}
         </div>
       </form>

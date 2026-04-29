@@ -44,12 +44,17 @@ const ChatMessageForm = ({ initialMessage, onMessageChange }) => {
   return (
     <div className="w-full max-w-3xl mx-auto px-4   pb-25">
       <form onSubmit={handleSubmit}>
-        <div className="relative rounded-2xl border-border shadow-sm transition-all">
+        <div className="relative rounded-2xl border border-border/40 dark:border-white/10 
+    bg-muted/40 backdrop-blur-xl 
+    shadow-[0_0_20px_rgba(255,255,255,0.05)] 
+    focus-within:shadow-[0_0_25px_rgba(236,72,153,0.4)] 
+    focus-within:border-pink-500/60 
+    transition-all duration-300">
           <Textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Type your message here...."
-            className="min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent px-4 py-3 text-base focus-visible:ring-0 focus-visible:ring-offset-0 "
+            className="w-full min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 rounded-t-2xl "
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -58,7 +63,7 @@ const ChatMessageForm = ({ initialMessage, onMessageChange }) => {
             }}
           />
 
-          <div className="flex items-center justify-between gap-2 px-3 py-2 border-t">
+          <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-border/50 dark:border-white/10">
             {/*Model Selector */}
             <div className="flex items-center gap-1">
 
