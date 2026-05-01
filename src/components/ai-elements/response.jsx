@@ -8,13 +8,23 @@ import "katex/dist/katex.min.css";
 
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { useState } from "react";
+import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { useState, useEffect } from "react";
 
-// ─── Normalize ALL math delimiter styles → $$ / $ ────────────────────────────
-// Different AI models output math differently. This catches them all:
-//   \[...\]              → $$...$$   (display)
-//   \(...\)              → $...$     (inline)
-//   (\displaystyle ...)  → $$...$$   (bare paren display, some models)
+// Normalize literal HTML tags the AI sometimes outputs as plain text
+// e.g. <br>, <b>text</b>, <i>text</i> inside table cells
+function normalizeHtml(str) {
+    if (!str || typeof str !== "string") return str;
+    return str
+        .replace(/<br\s*\/?>/gi, "  \n")
+        .replace(/<strong>([\s\S]*?)<\/strong>/gi, "**$1**")
+        .replace(/<b>([\s\S]*?)<\/b>/gi, "**$1**")
+        .replace(/<em>([\s\S]*?)<\/em>/gi, "*$1*")
+        .replace(/<i>([\s\S]*?)<\/i>/gi, "*$1*")
+        .replace(/<\/?[a-z][^>]*>/gi, "");
+}
+
+// Normalize math delimiters so KaTeX always catches them
 function normalizeMath(str) {
     if (!str || typeof str !== "string") return str;
     return str
@@ -23,7 +33,26 @@ function normalizeMath(str) {
         .replace(/\(\\(?:displaystyle|textstyle)([\s\S]*?)\)/g, (_, m) => `$$\\displaystyle${m}$$`);
 }
 
-// ─── MathText: re-render a string through KaTeX (used inside table cells) ─────
+function normalizeContent(str) {
+    return normalizeMath(normalizeHtml(str));
+}
+
+// Detect dark mode by watching the "dark" class on <html>
+function useIsDark() {
+    const [isDark, setIsDark] = useState(
+        () => typeof window !== "undefined" && document.documentElement.classList.contains("dark")
+    );
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            setIsDark(document.documentElement.classList.contains("dark"));
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+        return () => observer.disconnect();
+    }, []);
+    return isDark;
+}
+
+// Re-render a string through KaTeX (used inside table cells)
 function MathText({ text }) {
     if (!text || typeof text !== "string") return <>{text}</>;
     return (
@@ -32,12 +61,12 @@ function MathText({ text }) {
             rehypePlugins={[rehypeKatex]}
             components={{ p: ({ children }) => <>{children}</> }}
         >
-            {normalizeMath(text)}
+            {normalizeContent(text)}
         </ReactMarkdown>
     );
 }
 
-// ─── Walk React children, apply MathText to plain strings (for table cells) ───
+// Walk React children and apply MathText to plain strings (for table cells)
 function renderChildren(children) {
     if (children === null || children === undefined) return null;
     if (typeof children === "string") return <MathText text={children} />;
@@ -45,7 +74,7 @@ function renderChildren(children) {
     return children;
 }
 
-// ─── Copy button ──────────────────────────────────────────────────────────────
+// Copy button for code blocks
 function CopyButton({ code }) {
     const [copied, setCopied] = useState(false);
     const copy = () => {
@@ -57,16 +86,27 @@ function CopyButton({ code }) {
     return (
         <button
             onClick={copy}
-            className="px-2 py-1 text-xs rounded bg-white/10 hover:bg-white/20 text-white/50 hover:text-white transition-all"
+            style={{
+                padding: "2px 8px",
+                fontSize: "0.72rem",
+                borderRadius: "6px",
+                background: "var(--res-code-btn-bg)",
+                color: "var(--res-code-btn-fg)",
+                border: "none",
+                cursor: "pointer",
+                transition: "opacity 0.15s",
+            }}
         >
             {copied ? "✓ Copied" : "Copy"}
         </button>
     );
 }
 
-// ─── Main Response component ──────────────────────────────────────────────────
+// Main Response component
 export function Response({ children, className = "" }) {
-    // Safely coerce anything → string
+    const isDark = useIsDark();
+
+    // Safely coerce anything to string
     const raw =
         typeof children === "string"
             ? children
@@ -74,81 +114,104 @@ export function Response({ children, className = "" }) {
                 ? children.map((c) => (typeof c === "string" ? c : c?.text ?? "")).join("\n")
                 : children?.text ?? String(children ?? "");
 
-    // Normalize math delimiters BEFORE passing to ReactMarkdown
-    const content = normalizeMath(raw);
+    const content = normalizeContent(raw);
+
+    // All colors in one place - swap per theme
+    const vars = isDark ? {
+        "--res-text": "#e2e8f0",
+        "--res-text-muted": "rgba(226,232,240,0.6)",
+        "--res-text-strong": "#ffffff",
+        "--res-heading": "#f1f5f9",
+        "--res-border": "rgba(255,255,255,0.1)",
+        "--res-bg-code-inline": "rgba(255,255,255,0.1)",
+        "--res-code-inline-fg": "#f9a8d4",
+        "--res-code-bar-bg": "rgba(255,255,255,0.05)",
+        "--res-code-body-bg": "rgba(0,0,0,0.45)",
+        "--res-code-btn-bg": "rgba(255,255,255,0.12)",
+        "--res-code-btn-fg": "rgba(255,255,255,0.5)",
+        "--res-link": "#60a5fa",
+        "--res-quote-border": "rgba(255,255,255,0.2)",
+        "--res-quote-text": "rgba(226,232,240,0.55)",
+        "--res-hr": "rgba(255,255,255,0.1)",
+        "--res-table-head-bg": "rgba(255,255,255,0.05)",
+        "--res-table-td-text": "rgba(226,232,240,0.75)",
+    } : {
+        "--res-text": "#1e293b",
+        "--res-text-muted": "#475569",
+        "--res-text-strong": "#0f172a",
+        "--res-heading": "#0f172a",
+        "--res-border": "rgba(0,0,0,0.1)",
+        "--res-bg-code-inline": "rgba(0,0,0,0.06)",
+        "--res-code-inline-fg": "#db2777",
+        "--res-code-bar-bg": "rgba(0,0,0,0.04)",
+        "--res-code-body-bg": "#f8fafc",
+        "--res-code-btn-bg": "rgba(0,0,0,0.08)",
+        "--res-code-btn-fg": "#64748b",
+        "--res-link": "#2563eb",
+        "--res-quote-border": "rgba(0,0,0,0.15)",
+        "--res-quote-text": "#64748b",
+        "--res-hr": "rgba(0,0,0,0.1)",
+        "--res-table-head-bg": "rgba(0,0,0,0.03)",
+        "--res-table-td-text": "#334155",
+    };
 
     return (
-        <div className={`response-root text-sm leading-relaxed ${className}`}>
+        <div
+            className={`response-root ${className}`}
+            style={{ ...vars, fontSize: "0.875rem", lineHeight: "1.7", color: "var(--res-text)" }}
+        >
             <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
                 components={{
 
-                    // ── Paragraphs ────────────────────────────────────────────
                     p({ children }) {
-                        return <p className="mb-3 leading-relaxed">{children}</p>;
+                        return <p style={{ marginBottom: "0.75rem", lineHeight: "1.7", color: "var(--res-text)" }}>{children}</p>;
                     },
 
-                    // ── Headings ──────────────────────────────────────────────
                     h1({ children }) {
-                        return <h1 className="text-xl font-bold mt-5 mb-2 border-b border-white/10 pb-1">{children}</h1>;
+                        return <h1 style={{ fontSize: "1.2rem", fontWeight: 700, marginTop: "1.25rem", marginBottom: "0.5rem", borderBottom: "1px solid var(--res-border)", paddingBottom: "0.25rem", color: "var(--res-heading)" }}>{children}</h1>;
                     },
                     h2({ children }) {
-                        return <h2 className="text-lg font-semibold mt-4 mb-2">{children}</h2>;
+                        return <h2 style={{ fontSize: "1.05rem", fontWeight: 600, marginTop: "1rem", marginBottom: "0.5rem", color: "var(--res-heading)" }}>{children}</h2>;
                     },
                     h3({ children }) {
-                        return <h3 className="text-base font-semibold mt-3 mb-1">{children}</h3>;
+                        return <h3 style={{ fontSize: "0.95rem", fontWeight: 600, marginTop: "0.75rem", marginBottom: "0.25rem", color: "var(--res-heading)" }}>{children}</h3>;
                     },
                     h4({ children }) {
-                        return <h4 className="text-sm font-semibold mt-2 mb-1">{children}</h4>;
+                        return <h4 style={{ fontSize: "0.875rem", fontWeight: 600, marginTop: "0.5rem", marginBottom: "0.25rem", color: "var(--res-heading)" }}>{children}</h4>;
                     },
 
-                    // ── Lists ─────────────────────────────────────────────────
                     ul({ children }) {
-                        return <ul className="list-disc pl-5 my-2 space-y-1">{children}</ul>;
+                        return <ul style={{ listStyleType: "disc", paddingLeft: "1.25rem", margin: "0.5rem 0", display: "flex", flexDirection: "column", gap: "0.25rem" }}>{children}</ul>;
                     },
                     ol({ children }) {
-                        return <ol className="list-decimal pl-5 my-2 space-y-1">{children}</ol>;
+                        return <ol style={{ listStyleType: "decimal", paddingLeft: "1.25rem", margin: "0.5rem 0", display: "flex", flexDirection: "column", gap: "0.25rem" }}>{children}</ol>;
                     },
                     li({ children }) {
-                        return <li className="leading-relaxed">{children}</li>;
+                        return <li style={{ lineHeight: "1.7", color: "var(--res-text)" }}>{children}</li>;
                     },
 
-                    // ── Blockquote ────────────────────────────────────────────
                     blockquote({ children }) {
-                        return (
-                            <blockquote className="border-l-4 border-white/20 pl-4 my-3 text-white/60 italic">
-                                {children}
-                            </blockquote>
-                        );
+                        return <blockquote style={{ borderLeft: "4px solid var(--res-quote-border)", paddingLeft: "1rem", margin: "0.75rem 0", color: "var(--res-quote-text)", fontStyle: "italic" }}>{children}</blockquote>;
                     },
 
-                    // ── Horizontal rule ───────────────────────────────────────
                     hr() {
-                        return <hr className="border-white/10 my-4" />;
+                        return <hr style={{ border: "none", borderTop: "1px solid var(--res-hr)", margin: "1rem 0" }} />;
                     },
 
-                    // ── Links ─────────────────────────────────────────────────
                     a({ href, children }) {
-                        return (
-                            <a href={href} target="_blank" rel="noopener noreferrer"
-                                className="text-blue-400 underline underline-offset-2 hover:text-blue-300 transition-colors">
-                                {children}
-                            </a>
-                        );
+                        return <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "var(--res-link)", textDecoration: "underline", textUnderlineOffset: "2px" }}>{children}</a>;
                     },
 
-                    // ── Strong / Em ───────────────────────────────────────────
                     strong({ children }) {
-                        return <strong className="font-semibold text-white">{children}</strong>;
+                        return <strong style={{ fontWeight: 600, color: "var(--res-text-strong)" }}>{children}</strong>;
                     },
                     em({ children }) {
-                        return <em className="italic text-white/80">{children}</em>;
+                        return <em style={{ fontStyle: "italic", color: "var(--res-text-muted)" }}>{children}</em>;
                     },
 
-                    // ── Code blocks + inline code ─────────────────────────────
                     pre({ children }) {
-                        // Strip default <pre> — SyntaxHighlighter renders its own wrapper
                         return <>{children}</>;
                     },
                     code({ node, className: cls, children, ...props }) {
@@ -158,24 +221,18 @@ export function Response({ children, className = "" }) {
 
                         if (isBlock) {
                             return (
-                                <div className="my-4 rounded-xl overflow-hidden border border-white/10">
-                                    <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/10">
-                                        <span className="text-xs text-white/40 font-mono">
+                                <div style={{ margin: "1rem 0", borderRadius: "12px", overflow: "hidden", border: "1px solid var(--res-border)" }}>
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 16px", background: "var(--res-code-bar-bg)", borderBottom: "1px solid var(--res-border)" }}>
+                                        <span style={{ fontSize: "0.72rem", fontFamily: "monospace", color: "var(--res-text-muted)" }}>
                                             {language ?? "plaintext"}
                                         </span>
                                         <CopyButton code={raw} />
                                     </div>
                                     <SyntaxHighlighter
-                                        style={oneDark}
+                                        style={isDark ? oneDark : oneLight}
                                         language={language ?? "text"}
                                         PreTag="div"
-                                        customStyle={{
-                                            margin: 0,
-                                            borderRadius: 0,
-                                            background: "rgba(0,0,0,0.45)",
-                                            fontSize: "0.82rem",
-                                            padding: "1rem",
-                                        }}
+                                        customStyle={{ margin: 0, borderRadius: 0, background: "var(--res-code-body-bg)", fontSize: "0.82rem", padding: "1rem" }}
                                     >
                                         {raw}
                                     </SyntaxHighlighter>
@@ -183,41 +240,39 @@ export function Response({ children, className = "" }) {
                             );
                         }
 
-                        // Inline code
                         return (
-                            <code className="bg-white/10 px-1.5 py-0.5 rounded text-pink-300 font-mono text-[0.82em]" {...props}>
+                            <code style={{ background: "var(--res-bg-code-inline)", padding: "1px 6px", borderRadius: "4px", color: "var(--res-code-inline-fg)", fontFamily: "monospace", fontSize: "0.82em" }} {...props}>
                                 {children}
                             </code>
                         );
                     },
 
-                    // ── Tables (with math inside cells) ──────────────────────
                     table({ children }) {
                         return (
-                            <div className="overflow-x-auto my-4 rounded-xl border border-white/10">
-                                <table className="w-full border-collapse text-sm">{children}</table>
+                            <div style={{ overflowX: "auto", margin: "1rem 0", borderRadius: "12px", border: "1px solid var(--res-border)" }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>{children}</table>
                             </div>
                         );
                     },
                     thead({ children }) {
-                        return <thead className="bg-white/5">{children}</thead>;
+                        return <thead style={{ background: "var(--res-table-head-bg)" }}>{children}</thead>;
                     },
                     tbody({ children }) {
-                        return <tbody className="divide-y divide-white/5">{children}</tbody>;
+                        return <tbody>{children}</tbody>;
                     },
                     tr({ children }) {
-                        return <tr className="hover:bg-white/[0.03] transition-colors">{children}</tr>;
+                        return <tr style={{ borderBottom: "1px solid var(--res-border)" }}>{children}</tr>;
                     },
                     th({ children }) {
                         return (
-                            <th className="px-4 py-2.5 text-left font-semibold text-white/80 border-b border-white/10 whitespace-nowrap">
+                            <th style={{ padding: "10px 16px", textAlign: "left", fontWeight: 600, color: "var(--res-heading)", borderBottom: "1px solid var(--res-border)", whiteSpace: "nowrap" }}>
                                 {renderChildren(children)}
                             </th>
                         );
                     },
                     td({ children }) {
                         return (
-                            <td className="px-4 py-2.5 text-white/70 align-top">
+                            <td style={{ padding: "10px 16px", color: "var(--res-table-td-text)", verticalAlign: "top" }}>
                                 {renderChildren(children)}
                             </td>
                         );
